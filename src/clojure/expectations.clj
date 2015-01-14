@@ -1,6 +1,7 @@
 (ns expectations
   (:use clojure.set)
-  (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data))
+  (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
+            [expectations.formatter :as fmtr]))
 
 (def nothing "no arg given")
 
@@ -21,6 +22,7 @@
 (def ^{:dynamic true} *test-meta* {})
 (def ^{:dynamic true} *test-var* nil)
 (def ^{:dynamic true} *prune-stacktrace* true)
+(def ^{:dynamic true :tag ^fmtr/Formatter} *formatter* (fmtr/StringFormatter.))
 
 (def ^{:dynamic true} *report-counters* nil) ; bound to a ref of a map in test-ns
 
@@ -118,6 +120,7 @@
 (defn ^{:dynamic true} ignored-fns [{:keys [className fileName]}]
   (when *prune-stacktrace*
     (or (= fileName "expectations.clj")
+        (= flieName "formatter.clj")
         (= fileName "expectations_options.clj")
         (= fileName "NO_SOURCE_FILE")
         (= fileName "interruptible_eval.clj")
@@ -271,22 +274,26 @@
   (-> (find-expectations-vars :before-run) (execute-vars))
   (when @warn-on-iref-updates-boolean
     (add-watch-every-iref-for-updates))
+  (.start *formatter*)
   (binding [*report-counters* (ref *initial-report-counters*)]
     (let [ns->vars (group-by (comp :ns meta) (sort-by (comp :line meta) vars))
           start (System/nanoTime)
           in-context-vars (vec (find-expectations-vars :in-context))]
       (doseq [[a-ns the-vars] ns->vars]
+        (.ns-started *formatter*)
         (doseq [v the-vars]
           (create-context in-context-vars ^{:the-var v} #(test-var v))
           (expectation-finished v))
-        (ns-finished (ns-name a-ns)))
+        (ns-finished (ns-name a-ns))
+        (.ns-finished *formatter*))
       (let [result (assoc @*report-counters*
                      :run-time (int (/ (- (System/nanoTime) start) 1000000))
                      :ignored-expectations ignored-expectations)]
         (when @warn-on-iref-updates-boolean
           (remove-watch-every-iref-for-updates))
         (-> (find-expectations-vars :after-run) (execute-vars))
-        result))))
+        result))
+    (.stop *formatter*))
 
 (defn run-tests-in-vars [vars]
   (doto (assoc (test-vars vars 0) :type :summary)
