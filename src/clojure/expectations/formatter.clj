@@ -1,14 +1,61 @@
 (ns expectations.formatter
   (:require [hiccup.page :refer [doctype]]
-            [hiccup.core :refer [html]]))
+            [hiccup.core :refer [html]]
+            [hiccup.element :refer [unordered-list]]))
+
+;;; UTILITIES FOR REPORTING FUNCTIONS
+(defn getenv [var]
+  (System/getenv var))
+
+(defn on-windows? []
+  (re-find #"[Ww]in" (System/getProperty "os.name")))
+
+(defn colorize-choice []
+  (clojure.string/upper-case (or (getenv "EXPECTATIONS_COLORIZE")
+                                 (str (not (on-windows?))))))
+
+(def ansi-colors {:reset "[0m"
+                  :red     "[31m"
+                  :blue    "[34m"
+                  :yellow    "[33m"
+                  :cyan    "[36m"
+                  :green   "[32m"
+                  :magenta "[35m"})
+
+(defn ansi [code]
+  (str \u001b (get ansi-colors code (:reset ansi-colors))))
+
+(defn color [code & s]
+  (str (ansi code) (apply str s) (ansi :reset)))
+
+(defn colorize-filename [s]
+  (condp = (colorize-choice)
+    "TRUE" (color :magenta s)
+    s))
+
+(defn colorize-results [pred s]
+  (condp = (colorize-choice)
+    "TRUE" (if (pred)
+             (color :green s)
+             (color :red s))
+    s))
+
+(defn colorize-warn [s]
+  (condp = (colorize-choice)
+    "TRUE" (color :yellow s)
+    s))
+
+(defn colorize-raw [s]
+  (condp = (colorize-choice)
+    "TRUE" (color :cyan s)
+    s))
+
+;;; TEST RESULT REPORTING
+(defn test-file [{:keys [file line]}]
+  (colorize-filename (str (last (re-seq #"[A-Za-z_\.]+" file)) ":" line)))
 
 (defprotocol Formatter
   "Realization of standart interface."
-  (init [this output] "Set output buffer.")
-
-  (close [this]
-         "Invoked at the very end, `close` allows the formatter to clean
-          up resources, e.g. open streams, etc.")
 
   ;; DYNAMIC FORMATTER PART
   (start [this]
@@ -25,11 +72,15 @@
 
   (ns-finished [this test-ns] "Invoked at the end of the execution of each group.")
 
-  (test-started [this test-var] "Invoked at the beginning of the execution of each example.")
+  (test-started [this name meta] "Invoked at the beginning of the execution of each example.")
 
-  (passed [this test-var] "Invoked when an test passes.")
+  (test-finished [this name meta] "Invoked when test finished with any result")
 
-  (failed [this test-var] "Invoked when an example fails.")
+  (passed [this name meta] "Invoked when an test passes.")
+
+  (failed [this name meta msg] "Invoked when an test fails.")
+
+  (error [this name meta msg] "Invoked when test thrown an error.")
 
   ;; BUFFERED FORMATTER PART
   (start-dump [this]
@@ -44,7 +95,7 @@
                 "This method is invoked after the dumping the summary if profiling is
                  enabled.")
 
-  (dump-summary [this summary test-count failure-count pending-count]
+  (dump-summary [this notification]
                 "This method is invoked after the dumping of tests and failures.
                  Each parameter is assigned to a corresponding attribute.")
 
@@ -56,50 +107,63 @@
   ;              "Outputs a report of pending tests. This gets invoked
   ;               after the summary if option is set to do so.")
 
+  ; (init [this params] "initialization formatter")
+
+  ; (close [this] "Close all resources")
+  
   )
 
-(defrecord HTMLFormatter []
-  Formatter
+(def style (html [:style "body,html{width:100%}#report{width:900px;margin:20px auto 0}#report h3{background:#18576B;color:#CBECDD;padding:10px 20px}#report table{border-collapse:collapse;border:1px solid #AAA;width:100%}#report table td,#report table th{padding:12px 5px}#report table th{background:#E0E0E0;border-bottom:1px solid #AAA;border-right:1px solid #AAA}#report table tr:nth-child(odd){background:#F2F2F2}#report table td:nth-child(odd){background:rgba(0,0,0,.03)}#report table tr.passed{color:#055926}#report table tr.error{color:#F83131}#report table tr.failed{color:#220A6F}#report ul.summary{list-style-type:none;margin-top:20px;border:1px solid #AAA;padding:0}#report ul.summary li{padding:8px 20px}#report ul.summary li:nth-child(even){background:#F0F0F0}"]))
+
+(defprotocol Render
+  (render [this object]))
+
+(defrecord HTMLFormatter [output]
+  Formatter Render
 
   (render [this o]
-    (when-let [s (:output this)]
-      (write s o)))
+    (when (:output this)
+      (.write output o)
+      (.flush output)))
 
-  (init [this output]
-    (assoc this 
-           :output output
-           :columns ["Name of test" "Status" "INFO"])
+  (start [this]
     (->> 
       (html (:html5 doctype) "<html>"
             [:head [:meta {:charset "utf-8"}]
-                   [:title "Report for Expectations"]]
-            "<body>")
+             [:title "Report for Expectations"]
+             style]
+            "<body><div id=\"report\">")
       (.render this)))
 
-  (close [this]
-    (.render this (html "</body></html>"))
-    (assoc this :output nil))
-
-  (start [_])
-  (stop [_])
+  (stop [this]
+    (.render this (html "</div></body></html>")))
 
   (ns-started [this test-ns]
     (->>
       (html [:h3 test-ns] "<table>"
-            (vec (cons :th (map #(vector :td %) (:columns this)))))
+            [:tr (html (map #(vector :th %) ["test-name" "status" "info"]))])
       (.render this)))
 
   (ns-finished [this test-ns]
     (.render this "</table>"))
 
-  (test-started [_ _])
+  (test-started [_ _ _])
 
-  (passed [this test-var]
-    (.render this (html [:tr.passed [:td test-var] [:td "Pass"] [:td ""]])))
+  (test-finished [_ _ _])
 
-  (failed [this test-var]
+  (passed [this name meta]
+    (.render this (html [:tr.passed [:td name] [:td "Pass"] [:td ""]])))
+
+  (failed [this name meta msg]
     (.render this 
-             (html [:tr.failed [:td test-var] [:td "Fail"] [:td "DEBUG INFO"]])))
+             (html [:tr.failed 
+                    [:td name] 
+                    [:td "Fail"] 
+                    [:td.info [:pre (clojure.string/replace msg #"\[\d?\dm" "")]]])))
+
+  (error [this name meta {test :test}]
+    (.render this 
+             (html [:tr.error [:td name] [:td "Error"] [:td [:pre.message test]]])))
 
   (start-dump [_])
 
@@ -107,31 +171,53 @@
 
   (dump-profile [_ _ _])
 
-  (dump-summary [this summary test-count failure-cout pending-count]
-    (->> (html (unordered-list {:class "summary"}
-                              [summary test-count failure-cout pending-count]))
+  (dump-summary [this {:keys [test pass fail error run-time ignored-expectations]}]
+    (->> (html [:h3 "Summary"]
+               (unordered-list {:class "summary"}
+                               [(str "Ran " test (+ pass fail) " assertions in " run-time " msecs")
+                                (str fail " failures")
+                                (str error " errors")
+                                (str pass " passes")]))
          (.render this))))
 
-(defrecord StringFormatter []
+(defrecord Printer []
   Formatter
 
-  (init [_ _]) (close [_]) (start [_]) (stop [_])
+  (start [_]) (stop [_])
 
-  (ns-started [_ test-ns] (println (str "Couple of test in " this-ns)))
+  (ns-started [_ test-ns] (println (str "Couple of test in " test-ns)))
 
   (ns-finished [_ _] (println "\n"))
 
-  (test-started [_ _])
+  (test-started [_ _ _])
 
-  (passed [_ test-var] (println (str (:name test-var) " ------- OK")))
+  (test-finished [_ _ _])
 
-  (failed [_ test-var] (println (str (:name test-var) "\n" (:msg test-var))))
+  (passed [_ name meta] (println (str "\n\t" name " ------- OK")))
+
+  (failed [_ name meta msg] 
+    (println (str "\nfaliure in (" (test-file meta) ") : " (:ns meta)))
+    (println msg))
+
+  (error [_ name meta {:keys [test expected actual result stack]}]
+    (println (clojure.string/join
+               "\n" [(colorize-raw test)
+                     (str "  exp-msg: " expected)
+                     (str "  act-msg: " actual)
+                     (str "    threw: " (class result) " - " (.getMessage result))
+                     stack])))
 
   (start-dump [_])
 
-  (dump-failures [_])
+  (dump-failures [_ _])
 
-  (dump-profile [_])
+  (dump-profile [_ _ _])
 
-  (dump-summary [_ _ _ _ _]))
+  (dump-summary [_ {:keys [test pass fail error run-time ignored-expectations]}]
+    (println 
+      (str "\nRan " test " tests containing "
+           (+ pass fail error) " assertions in " run-time " msecs\n"
+           (when (> ignored-expectations 0) (colorize-warn (str "IGNORED " ignored-expectations " EXPECTATIONS\n")))
+           (colorize-results (partial = 0 fail error) (str fail " failures, " error " errors")) "."))))
+
 

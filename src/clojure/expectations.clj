@@ -1,7 +1,8 @@
 (ns expectations
   (:use clojure.set)
   (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
-            [expectations.formatter :as fmtr]))
+            [expectations.formatter :as fmtr])
+  (:import [expectations.formatter Formatter Printer]))
 
 (def nothing "no arg given")
 
@@ -22,7 +23,6 @@
 (def ^{:dynamic true} *test-meta* {})
 (def ^{:dynamic true} *test-var* nil)
 (def ^{:dynamic true} *prune-stacktrace* true)
-(def ^{:dynamic true :tag ^fmtr/Formatter} *formatter* (fmtr/StringFormatter.))
 
 (def ^{:dynamic true} *report-counters* nil) ; bound to a ref of a map in test-ns
 
@@ -116,11 +116,11 @@
 (defn ^{:dynamic true} finished [test-name test-meta])
 (defn ^{:dynamic true} ns-finished [a-ns])
 (defn ^{:dynamic true} expectation-finished [a-var])
+(def ^{:dynamic true :tag Formatter} *formatter* (atom (Printer.))) 
 
 (defn ^{:dynamic true} ignored-fns [{:keys [className fileName]}]
   (when *prune-stacktrace*
     (or (= fileName "expectations.clj")
-        (= flieName "formatter.clj")
         (= fileName "expectations_options.clj")
         (= fileName "NO_SOURCE_FILE")
         (= fileName "interruptible_eval.clj")
@@ -166,6 +166,7 @@
 
 (defmethod report :pass [m]
   (alter-meta! *test-var* assoc ::run true :status [:success "" (:line *test-meta*)])
+  (.passed @*formatter* *test-name* *test-meta*)
   (inc-report-counter :pass))
 
 (defmethod report :fail [m]
@@ -173,30 +174,24 @@
   (let [current-test *test-var*
         message (->failure-message m)]
     (alter-meta! current-test assoc ::run true :status [:fail message (:line *test-meta*)])
-    (fail *test-name* *test-meta* message)))
+    (.failed @*formatter* *test-name* *test-meta* message)))
 
 (defmethod report :error [{:keys [result raw] :as m}]
   (inc-report-counter :error)
   (let [result (first result)
         current-test *test-var*
-        message (string-join "\n"
-                             [(when reminder (colorize-warn (str "     ***** " (clojure.string/upper-case reminder) " *****")))
-                              (when raw
-                                (when (show-raw-choice) (colorize-raw (raw-str raw))))
-                              (when-let [msg (:expected-message m)] (str "  exp-msg: " msg))
-                              (when-let [msg (:actual-message m)] (str "  act-msg: " msg))
-                              (str "    threw: " (class result) " - " (.getMessage result))
-                              (pruned-stack-trace result)])]
+        message {:test (raw-str raw)
+                 :expected (:expected-message m)
+                 :actual (:actual-message m)
+                 :result result
+                 :stack (pruned-stack-trace result)
+                 }]
     (alter-meta! current-test
                  assoc ::run true :status [:error message (:line *test-meta*)])
-    (fail *test-name* *test-meta* message)))
+    (.error @*formatter* *test-name* *test-meta* message)))
 
-(defmethod report :summary [{:keys [test pass fail error run-time ignored-expectations]}]
-  (summary (str "\nRan " test " tests containing "
-                (+ pass fail error) " assertions in "
-                run-time " msecs\n"
-                (when (> ignored-expectations 0) (colorize-warn (str "IGNORED " ignored-expectations " EXPECTATIONS\n")))
-                (colorize-results (partial = 0 fail error) (str fail " failures, " error " errors")) ".")))
+(defmethod report :summary [notification]
+  (.dump-summary @*formatter* notification))
 
 ;; TEST RUNNING
 
@@ -233,7 +228,7 @@
   (when-let [t (var-get v)]
     (let [tn (test-name (meta v))
           tm (meta v)]
-      (started tn tm)
+      (.test-started @*formatter* tn tm)
       (inc-report-counter :test)
       (binding [*test-name* tn
                 *test-meta* tm
@@ -243,7 +238,7 @@
           (catch Throwable e
             (println "\nunexpected error in" tn)
             (.printStackTrace e))))
-      (finished tn tm))))
+      (.test-finished @*formatter* tn tm))))
 
 (defn find-expectations-vars [option-type]
   (->>
@@ -272,32 +267,31 @@
     (catch java.io.FileNotFoundException e))
 
   (-> (find-expectations-vars :before-run) (execute-vars))
+  (.start @*formatter*)
   (when @warn-on-iref-updates-boolean
     (add-watch-every-iref-for-updates))
-  (.start *formatter*)
   (binding [*report-counters* (ref *initial-report-counters*)]
     (let [ns->vars (group-by (comp :ns meta) (sort-by (comp :line meta) vars))
           start (System/nanoTime)
           in-context-vars (vec (find-expectations-vars :in-context))]
       (doseq [[a-ns the-vars] ns->vars]
-        (.ns-started *formatter*)
+        (.ns-started @*formatter* (ns-name a-ns))
         (doseq [v the-vars]
           (create-context in-context-vars ^{:the-var v} #(test-var v))
           (expectation-finished v))
-        (ns-finished (ns-name a-ns))
-        (.ns-finished *formatter*))
+        (.ns-finished @*formatter* (ns-name a-ns)))
       (let [result (assoc @*report-counters*
                      :run-time (int (/ (- (System/nanoTime) start) 1000000))
                      :ignored-expectations ignored-expectations)]
         (when @warn-on-iref-updates-boolean
           (remove-watch-every-iref-for-updates))
         (-> (find-expectations-vars :after-run) (execute-vars))
-        result))
-    (.stop *formatter*))
+        result))))
 
 (defn run-tests-in-vars [vars]
   (doto (assoc (test-vars vars 0) :type :summary)
-    (report)))
+    (report))
+  (.stop @*formatter*))
 
 (defn unrun-expectation [{:keys [expectation] run? ::run}]
   (and expectation (not run?)))
@@ -318,7 +312,8 @@
       (doto (assoc (test-vars focused (- (count expectations) (count focused))) :type :summary)
         (report))
       (doto (assoc (test-vars expectations 0) :type :summary)
-        (report)))))
+        (report))))
+  (.stop @*formatter*))
 
 (defn run-all-tests
   ([] (run-tests (all-ns)))
