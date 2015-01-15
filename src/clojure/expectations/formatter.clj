@@ -115,10 +115,15 @@
 
 (def style (html [:style "body,html{width:100%}#report{width:900px;margin:20px auto 0}#report h3{background:#18576B;color:#CBECDD;padding:10px 20px}#report table{border-collapse:collapse;border:1px solid #AAA;width:100%}#report table td,#report table th{padding:12px 5px}#report table th{background:#E0E0E0;border-bottom:1px solid #AAA;border-right:1px solid #AAA}#report table tr:nth-child(odd){background:#F2F2F2}#report table td:nth-child(odd){background:rgba(0,0,0,.03)}#report table tr.passed{color:#055926}#report table tr.error{color:#F83131}#report table tr.failed{color:#220A6F}#report ul.summary{list-style-type:none;margin-top:20px;border:1px solid #AAA;padding:0}#report ul.summary li{padding:8px 20px}#report ul.summary li:nth-child(even){background:#F0F0F0}"]))
 
+(def columns ["test-name" "status" "info"])
+
 (defprotocol Render
   (render [this object]))
 
 (defrecord HTMLFormatter [output]
+  "Varables for overload:
+      style - css styles
+      columns - names of columns"
   Formatter Render
 
   (render [this o]
@@ -141,7 +146,7 @@
   (ns-started [this test-ns]
     (->>
       (html [:h3 test-ns] "<table>"
-            [:tr (html (map #(vector :th %) ["test-name" "status" "info"]))])
+            [:tr (html (map #(vector :th %) columns))])
       (.render this)))
 
   (ns-finished [this test-ns]
