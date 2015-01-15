@@ -6,7 +6,7 @@ visit the expectations website for all of the expectation docs.
 
 ### problems
 
+* split formatter to middleware-formatters
 * encapsulate test info in record and testing-protocol for each test
 * inject initialization in testing-protocol
 * wrap expectation with future
-
