@@ -1,6 +1,6 @@
 (ns expectations.formatters.html
-  (:import expectations.formatters.formatter.Formatter)
-  (:require [hiccup.page :refer [doctype]]
+  (:require [expectations.formatters.formatter :refer [Formatter]]
+            [hiccup.page :refer [doctype]]
             [hiccup.core :refer [html]]
             [hiccup.element :refer [unordered-list]]))
 

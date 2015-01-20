@@ -1,7 +1,7 @@
 (ns formatters
   (:use expectations)
-  (:import [expectations.formatters.html HTMLFormatter])
-  (:require [clojure.java.io :refer [writer file]]))
+  (:require [clojure.java.io :refer [writer file]]
+            [expectations.formatters.html :refer [->HTMLFormatter]]))
 
 (defn set-html-fromatter
   "set html render for notifer"
@@ -11,7 +11,7 @@
          (fn [_] 
            (let [stdout-bf (writer System/out)
                  file-bf (writer (file "test.html"))]
-             (HTMLFormatter. file-bf)))))
+             (->HTMLFormatter file-bf)))))
 
 (expect 1 1)
 

@@ -1,5 +1,5 @@
 (ns expectations.formatters.plain
-  (:import [expectations.formatters.formatter Formatter]))
+  (:require [expectations.formatters.formatter :refer [Formatter]]))
 
 ;;; UTILITIES FOR REPORTING FUNCTIONS
 (defn getenv [var]
