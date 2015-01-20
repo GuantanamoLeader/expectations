@@ -1,8 +1,8 @@
 (ns expectations
   (:use clojure.set)
   (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
-            [expectations.formatter :as fmtr])
-  (:import [expectations.formatter Formatter Printer]))
+            [expectations.formatters.formatter :as fmtr])
+  (:import [expectations.formatters formatter.Formatter plain.PlainFormatter]))
 
 (def nothing "no arg given")
 
@@ -116,7 +116,7 @@
 (defn ^{:dynamic true} finished [test-name test-meta])
 (defn ^{:dynamic true} ns-finished [a-ns])
 (defn ^{:dynamic true} expectation-finished [a-var])
-(def ^{:dynamic true :tag Formatter} *formatter* (atom (Printer.))) 
+(def ^{:dynamic true :tag Formatter} *formatter* (atom (PlainFormatter.))) 
 
 (defn ^{:dynamic true} ignored-fns [{:keys [className fileName]}]
   (when *prune-stacktrace*

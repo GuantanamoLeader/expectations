@@ -1,9 +1,9 @@
 (ns formatters
   (:use expectations)
-  (:import [expectations.formatter HTMLFormatter])
+  (:import [expectations.formatters.html HTMLFormatter])
   (:require [clojure.java.io :refer [writer file]]))
 
-(defn set-html-fromatter 
+(defn set-html-fromatter
   "set html render for notifer"
   {:expectations-options :before-run}
   []
