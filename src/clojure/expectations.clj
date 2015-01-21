@@ -2,7 +2,7 @@
   (:use clojure.set)
   (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
             [expectations.formatters.formatter :as fmtr]
-            [expectations.formatters.plain-formatter :as pfmtr]))
+            [expectations.formatters.plain :as pfmtr]))
 
 (def nothing "no arg given")
 

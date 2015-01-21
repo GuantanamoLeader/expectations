@@ -3,9 +3,7 @@
             [hiccup.core :refer [html]]
             [hiccup.element :refer [unordered-list]]))
 
-(defn class->key [^Class x] (-> x .getName keyword))
-
-(defn dispatch-key [& args] (-> args first class class->key))
+(defn dispatch-key [& args] (-> args first meta :type))
 
 #_( Realization of standart interface. )
 

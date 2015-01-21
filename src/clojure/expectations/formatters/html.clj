@@ -1,4 +1,4 @@
-(ns expectations.formatters.html-formatter
+(ns expectations.formatters.html
   (:require [expectations.formatters.formatter :as fmt]
             [hiccup.core :refer [html]]
             [hiccup.page :refer [doctype]]
@@ -9,11 +9,11 @@
 
 (defrecord HTMLFormatter [output names-of-columns])
 
-(def html-key (fmt/class->key HTMLFormatter))
+(def html-key ::html)
 
 (def names-of-columns ["test-name" "status" "info"])
 
-(def instance (HTMLFormatter. (writer System/out) names-of-columns))
+(def instance (vary-meta (HTMLFormatter. (writer System/out) names-of-columns) assoc :type html-key))
 
 (defn render [output obj]
   (.write output obj)

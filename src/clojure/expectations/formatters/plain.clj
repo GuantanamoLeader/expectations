@@ -1,4 +1,4 @@
-(ns expectations.formatters.plain-formatter
+(ns expectations.formatters.plain
   (:require [expectations.formatters.formatter :as fmt]))
 
 ;;; UTILITIES FOR REPORTING FUNCTIONS
@@ -54,9 +54,9 @@
 
 (defrecord PlainFormatter [])
 
-(def instance (PlainFormatter.))
+(def plain-key ::plain)
 
-(def plain-key (fmt/class->key PlainFormatter))
+(def instance (vary-meta (PlainFormatter.) assoc :type plain-key))
 
 (defmethod fmt/ns-started plain-key [_ test-ns] (println (str "Couple of test in " test-ns)))
 
