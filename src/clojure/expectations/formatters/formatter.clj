@@ -46,6 +46,7 @@
   "Invoked when an test passes."
 
   dispatch-key)
+  
 
 (defmulti failed 
   "Invoked when an test fails."

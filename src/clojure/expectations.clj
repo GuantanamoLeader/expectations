@@ -1,6 +1,6 @@
 (ns expectations
   (:use clojure.set)
-  (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
+  (:require clojure.template clojure.string clojure.pprint clojure.data
             [expectations.formatters.formatter :as fmtr]
             [expectations.formatters.plain :as pfmtr]))
 
@@ -529,23 +529,41 @@
              (compare-expr e2# a# '~e '~a))))))
 
 (defmacro expect
-  ([a] `(expect true (if ~a true false)))
+  ([a]
+   (if (and (list? a) (= (first a) 'with-meta))
+     `(expect-focused true (with-meta (if ~(second a) true false) ~(last a)))
+     `(expect-focused true (if ~a true false))))
   ([e a]
+   (if (and (list? a) (= (first a) 'with-meta))
+     `(def ~(vary-meta (gensym) assoc :expectation true :info (last a))
+        (fn [] (doexpect ~e ~(second a))))
      `(def ~(vary-meta (gensym) assoc :expectation true)
-        (fn [] (doexpect ~e ~a)))))
+        (fn [] (doexpect ~e ~a))))))
 
 (defmacro expect-let [bindings e a]
-  `(def ~(vary-meta (gensym) assoc :expectation true)
-     (fn [] (let ~bindings (doexpect ~e ~a)))))
+  (if (and (list? a) (= (first a) 'with-meta))
+    `(def ~(vary-meta (gensym) assoc :expectation true :info (last a))
+       (fn [] (let ~bindings (doexpect ~e ~(second a)))))
+    `(def ~(vary-meta (gensym) assoc :expectation true)
+       (fn [] (let ~bindings (doexpect ~e ~a))))))
 
 (defmacro expect-focused
-  ([a] `(expect-focused true (if ~a true false)))
+  ([a]
+   (if (and (list? a) (= (first a) 'with-meta))
+     `(expect-focused true (with-meta (if ~(second a) true false) ~(last a)))
+     `(expect-focused true (if ~a true false))))
   ([e a]
+   (if (and (list? a) (= (first a) 'with-meta))
+     `(def ~(vary-meta (gensym) assoc :expectation true :focused true :info (last a))
+        (fn [] (doexpect ~e ~(second a))))
      `(def ~(vary-meta (gensym) assoc :expectation true :focused true)
-        (fn [] (doexpect ~e ~a)))))
+        (fn [] (doexpect ~e ~a))))))
 
 (defmacro expect-let-focused [bindings e a]
-  `(def ~(vary-meta (gensym) assoc :expectation true :focused true)
+  (if (and (list? a) (= (first a) 'with-meta))
+  `(def ~(vary-meta (gensym) assoc :expectation true :focused true :info (last a))
+     (fn [] (let ~bindings (doexpect ~e ~(second a))))))
+  `(def ~(vary-meta (gensym) assoc :expectation true :focused)
      (fn [] (let ~bindings (doexpect ~e ~a)))))
 
 (defmacro expanding [n] (list 'quote  (macroexpand-1 n)))
