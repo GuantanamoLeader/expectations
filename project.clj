@@ -1,10 +1,10 @@
-(defproject expectations "2.0.13-SNAPSHOT"
+(defproject org.clojars.khoda.expectations "2.0.13-SNAPSHOT"
   :description "testing framework"
   :jar-name "expectations.jar"
   :java-source-paths ["src/java"]
   :source-paths ["src/clojure"]
   :test-paths ["test/clojure"]
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.6.0"]
                  [junit/junit "4.8.1"]
                  [hiccup "1.0.5"]]
   :plugins [[lein-expectations "0.0.7"]
