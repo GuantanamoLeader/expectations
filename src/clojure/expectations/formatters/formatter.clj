@@ -1,61 +1,133 @@
-(ns expectations.formatters.formatter)
+(ns expectations.formatters.formatter
+  (:require [hiccup.page :refer [doctype]]
+            [hiccup.core :refer [html]]
+            [hiccup.element :refer [unordered-list]]))
 
-(defprotocol Formatter
-  "Realization of standart interface."
+(defn class->key [^Class x] (-> x .getName keyword))
+
+(defn dispatch-key [& args] (-> args first class class->key))
+
+#_( Realization of standart interface. )
 
   ;; DYNAMIC FORMATTER PART
-  (start [this]
-         "This method is invoked before any tests are run, right after
-          they have all been collected. This can be useful for special
-          formatters that need to provide progress on feedback (graphical ones).")
+(defmulti start
+  "This method is invoked before any tests are run, right after
+  they have all been collected. This can be useful for special
+  formatters that need to provide progress on feedback (graphical ones)."
+  
+  dispatch-key)
 
-  (stop [this] 
-        "Invoked after all tests have executed, before dumping post-run reports.")
+(defmulti stop
+  "Invoked after all tests have executed, before dumping post-run reports."
 
-  ;; TEST OUTPUT METHODS
-  (ns-started [this test-ns]
-                 "This method is invoked at the beginning of the execution of each group.")
+  dispatch-key)
 
-  (ns-finished [this test-ns] "Invoked at the end of the execution of each group.")
+#_( TEST OUTPUT METHODS )
 
-  (test-started [this name meta] "Invoked at the beginning of the execution of each example.")
+(defmulti ns-started
+  "This method is invoked at the beginning of the execution of each group."
 
-  (test-finished [this name meta] "Invoked when test finished with any result")
+  dispatch-key)
 
-  (passed [this name meta] "Invoked when an test passes.")
+(defmulti ns-finished 
+  "Invoked at the end of the execution of each group."
 
-  (failed [this name meta msg] "Invoked when an test fails.")
+  dispatch-key)
 
-  (error [this name meta msg] "Invoked when test thrown an error.")
+(defmulti test-started 
+  "Invoked at the beginning of the execution of each example."
 
-  ;; BUFFERED FORMATTER PART
-  (start-dump [this]
-              "This method is invoked after all of the tests have executed. The
-               next method to be invoked after this one is #'dump-failures
-               (BaseTextFormatter then calls #'dump_failures once for each failed
-               test).")
+  dispatch-key)
 
-  (dump-failures [this notification] "Dumps detailed information about each test failure.")
+(defmulti test-finished 
+  "Invoked when test finished with any result"
 
-  (dump-profile [this slowest-tests slowest-groups] 
-                "This method is invoked after the dumping the summary if profiling is
-                 enabled.")
+  dispatch-key)
 
-  (dump-summary [this notification]
-                "This method is invoked after the dumping of tests and failures.
-                 Each parameter is assigned to a corresponding attribute.")
+(defmulti passed 
+  "Invoked when an test passes."
 
-  ;(pending [notification] "Invoked when an test is pending.")
+  dispatch-key)
+  
 
-  ;(message [this msg] "Used by the reporter to send messages to the output stream.")
+(defmulti failed 
+  "Invoked when an test fails."
 
-  ;(dump-pending [this notification] 
-  ;              "Outputs a report of pending tests. This gets invoked
-  ;               after the summary if option is set to do so.")
+  dispatch-key)
 
-  ; (init [this params] "initialization formatter")
+(defmulti error 
+  "Invoked when test thrown an error."
 
-  ; (close [this] "Close all resources")
+  dispatch-key)
+
+#_( BUFFERED FORMATTER PART )
+
+(defmulti start-dump
+  "This method is invoked after all of the tests have executed. The
+  next method to be invoked after this one is #'dump-failures
+  (BaseTextFormatter then calls #'dump_failures once for each failed
+  test)."
+
+  dispatch-key)
+
+(defmulti dump-failures
+  "Dumps detailed information about each test failure."
+
+  dispatch-key)
+
+(defmulti dump-profile
+  "This method is invoked after the dumping the summary if profiling is
+  enabled."
+
+  dispatch-key)
+
+(defmulti dump-summary
+  "This method is invoked after the dumping of tests and failures.
+  Each parameter is assigned to a corresponding attribute."
+
+  dispatch-key)
+
+#_( 
+   
+   COMMING SOON
+
+  (pending [notification] "Invoked when an test is pending.")
+
+  (message [this msg] "Used by the reporter to send messages to the output stream.")
+
+  (dump-pending [this notification] 
+                "Outputs a report of pending tests. This gets invoked
+                 after the summary if option is set to do so.")
+
+   (init [this params] "initialization formatter")
+
+   (close [this] "Close all resources")
   
 )
+
+(defmethod start :default [& init-args])
+
+(defmethod stop :default [& out-args])
+
+(defmethod ns-started :default [& ns-name])
+
+(defmethod ns-finished :default [& ns-name])
+
+(defmethod test-started :default [& test-name|test-meta])
+
+(defmethod test-finished :default [& test-name|test-meta])
+
+(defmethod passed :default [& test-name|test-meta])
+
+(defmethod failed :default [& test-name|test-meta])
+
+(defmethod error :default [& test-name|test-meta])
+
+(defmethod start-dump :default [& dump-agrs])
+
+(defmethod dump-failures :default [& dump-agrs])
+
+(defmethod dump-profile :default [& dump-agrs])
+
+(defmethod dump-summary :default [& dump-agrs])
 

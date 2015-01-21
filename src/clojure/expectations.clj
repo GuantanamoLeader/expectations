@@ -2,8 +2,7 @@
   (:use clojure.set)
   (:require expectations.clojure.walk clojure.template clojure.string clojure.pprint clojure.data
             [expectations.formatters.formatter :as fmtr]
-            [expectations.formatters.formatter :refer [Formatter]]
-            [expectations.formatters.plain :refer [->PlainFormatter]]))
+            [expectations.formatters.plain :as pfmtr]))
 
 (def nothing "no arg given")
 
@@ -117,7 +116,7 @@
 (defn ^{:dynamic true} finished [test-name test-meta])
 (defn ^{:dynamic true} ns-finished [a-ns])
 (defn ^{:dynamic true} expectation-finished [a-var])
-(def ^{:dynamic true :tag Formatter} *formatter* (atom (->PlainFormatter))) 
+(def ^{:dynamic true} *formatter* (atom pfmtr/instance)) 
 
 (defn ^{:dynamic true} ignored-fns [{:keys [className fileName]}]
   (when *prune-stacktrace*
@@ -167,7 +166,7 @@
 
 (defmethod report :pass [m]
   (alter-meta! *test-var* assoc ::run true :status [:success "" (:line *test-meta*)])
-  (.passed @*formatter* *test-name* *test-meta*)
+  (fmtr/passed @*formatter* *test-name* *test-meta*)
   (inc-report-counter :pass))
 
 (defmethod report :fail [m]
@@ -175,7 +174,7 @@
   (let [current-test *test-var*
         message (->failure-message m)]
     (alter-meta! current-test assoc ::run true :status [:fail message (:line *test-meta*)])
-    (.failed @*formatter* *test-name* *test-meta* message)))
+    (fmtr/failed @*formatter* *test-name* *test-meta* message)))
 
 (defmethod report :error [{:keys [result raw] :as m}]
   (inc-report-counter :error)
@@ -189,10 +188,10 @@
                  }]
     (alter-meta! current-test
                  assoc ::run true :status [:error message (:line *test-meta*)])
-    (.error @*formatter* *test-name* *test-meta* message)))
+    (fmtr/error @*formatter* *test-name* *test-meta* message)))
 
 (defmethod report :summary [notification]
-  (.dump-summary @*formatter* notification))
+  (fmtr/dump-summary @*formatter* notification))
 
 ;; TEST RUNNING
 
@@ -229,7 +228,7 @@
   (when-let [t (var-get v)]
     (let [tn (test-name (meta v))
           tm (meta v)]
-      (.test-started @*formatter* tn tm)
+      (fmtr/test-started @*formatter* tn tm)
       (inc-report-counter :test)
       (binding [*test-name* tn
                 *test-meta* tm
@@ -239,7 +238,7 @@
           (catch Throwable e
             (println "\nunexpected error in" tn)
             (.printStackTrace e))))
-      (.test-finished @*formatter* tn tm))))
+      (fmtr/test-finished @*formatter* tn tm))))
 
 (defn find-expectations-vars [option-type]
   (->>
@@ -268,7 +267,7 @@
     (catch java.io.FileNotFoundException e))
 
   (-> (find-expectations-vars :before-run) (execute-vars))
-  (.start @*formatter*)
+  (fmtr/start @*formatter*)
   (when @warn-on-iref-updates-boolean
     (add-watch-every-iref-for-updates))
   (binding [*report-counters* (ref *initial-report-counters*)]
@@ -276,11 +275,11 @@
           start (System/nanoTime)
           in-context-vars (vec (find-expectations-vars :in-context))]
       (doseq [[a-ns the-vars] ns->vars]
-        (.ns-started @*formatter* (ns-name a-ns))
+        (fmtr/ns-started @*formatter* (ns-name a-ns))
         (doseq [v the-vars]
           (create-context in-context-vars ^{:the-var v} #(test-var v))
           (expectation-finished v))
-        (.ns-finished @*formatter* (ns-name a-ns)))
+        (fmtr/ns-finished @*formatter* (ns-name a-ns)))
       (let [result (assoc @*report-counters*
                      :run-time (int (/ (- (System/nanoTime) start) 1000000))
                      :ignored-expectations ignored-expectations)]
@@ -292,7 +291,7 @@
 (defn run-tests-in-vars [vars]
   (doto (assoc (test-vars vars 0) :type :summary)
     (report))
-  (.stop @*formatter*))
+  (fmtr/stop @*formatter*))
 
 (defn unrun-expectation [{:keys [expectation] run? ::run}]
   (and expectation (not run?)))
@@ -314,7 +313,7 @@
         (report))
       (doto (assoc (test-vars expectations 0) :type :summary)
         (report))))
-  (.stop @*formatter*))
+  (fmtr/stop @*formatter*))
 
 (defn run-all-tests
   ([] (run-tests (all-ns)))

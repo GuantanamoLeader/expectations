@@ -1,17 +1,34 @@
 (ns formatters
   (:use expectations)
-  (:require [clojure.java.io :refer [writer file]]
-            [expectations.formatters.html :refer [->HTMLFormatter]]))
+ (:require [expectations.formatters.html-formatter :refer 
+             [->HTMLFormatter instance render html-key]]
+            [expectations.formatters.formatter :refer [class->key] :as fmt]
+            [hiccup.core :refer [html]]
+            [clojure.java.io :refer [writer file]]))
+
+(defrecord HTMLFmtrM [output names-of-columns])
+(def new-key (class->key HTMLFmtrM))
+
+(defmethod fmt/passed new-key [this name meta]
+  (render (:output this)
+          (html 
+            [:tr.passed 
+             [:td name]
+             [:td "Pass"] 
+             [:td (or (:info meta) "")]])))
+
+(def col-names ["test-name" "status" "info"])
 
 (defn set-html-fromatter
   "set html render for notifer"
   {:expectations-options :before-run}
   []
+(derive new-key html-key)
   (swap! *formatter* 
          (fn [_] 
-           (let [stdout-bf (writer System/out)
-                 file-bf (writer (file "test.html"))]
-             (->HTMLFormatter file-bf)))))
+          ;instance
+           (->HTMLFmtrM (writer (file "test.html")) col-names)
+           )))
 
 (expect 1 1)
 
