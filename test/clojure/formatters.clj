@@ -15,7 +15,7 @@
         [:tr.passed 
          [:td name]
          [:td "Pass"] 
-         [:td (or (:info meta) "nooobies")]])
+         [:td (or (-> meta :info :some) "nooobies")]])
        (render (:output this))))
 
 (def col-names ["test-name" "status" "info"])
@@ -30,7 +30,7 @@
            (vary-meta (->HTMLFmtrM (writer (file "test.html")) col-names) assoc :type new-key)
           )))
 
-(expect 1 1)
+(expect 1 (with-meta 1 {:some "info"}))
 
 (expect false (/ 1 0))
 
