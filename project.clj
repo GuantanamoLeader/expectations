@@ -1,4 +1,4 @@
-(defproject org.clojars.khoda.expectations "2.0.13-SNAPSHOT"
+(defproject org.clojars.khoda.expectations "2.0.13"
   :description "testing framework"
   :jar-name "expectations.jar"
   :java-source-paths ["src/java"]
